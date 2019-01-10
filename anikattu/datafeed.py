@@ -1,4 +1,3 @@
-from config import CONFIG
 from pprint import pprint, pformat
 
 import logging
@@ -9,8 +8,8 @@ log.setLevel(logging.INFO)
 
 import random
 
-from .utilz import tqdm
-from .debug import memory_consumed
+from anikattu.utilz import tqdm
+from anikattu.debug import memory_consumed
 
 from collections import Counter
 
@@ -104,8 +103,11 @@ class DataFeed(object):
             log.exception('batch failed')
             return self.next_batch(apply_batchop=apply_batchop)
 
-    def nth_batch(self, n, apply_batchop=True):
-        b =    self.data[ n * self.batch_size   :   (n+1) * self.batch_size ]
+    def nth_batch(self, n, batch_size=None, apply_batchop=True):
+        if not batch_size:
+            batch_size = self.batch_size
+            
+        b =    self.data[ n * batch_size   :   (n+1) * batch_size ]
         if apply_batchop:
             return self._batchop(b)
         
@@ -248,7 +250,12 @@ class MultiplexedDataFeed(DataFeed):
     def nth_batch(self, n, apply_batchop=True):
         b = []
         for fname, feed in self.datafeeds.items():
-            b.append(random.choice(feed.nth_batch(min(n, random.choice(range(feed.num_batch))), apply_batchop=False)))
+            b.append(
+                random.choice(
+                    feed.nth_batch(
+                        min(n, random.choice(range(feed.num_batch))),
+                        apply_batchop=False)))
+            
             if len(b) == self.batch_size: break
                     
         if apply_batchop:

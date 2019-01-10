@@ -9,9 +9,9 @@ log.setLevel(logging.INFO)
 
 import random
 
-from .utilz import tqdm
-from .debug import memory_consumed
-from .vocab import Vocab
+from anikattu.utilz import tqdm
+from anikattu.debug import memory_consumed
+from anikattu.vocab import Vocab
 
 from collections import Counter
 import random

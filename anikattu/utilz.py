@@ -1,4 +1,3 @@
-import config
 from pprint import pprint, pformat
 
 import os
@@ -25,13 +24,16 @@ def mkdir_if_exist_not(name):
     if not os.path.isdir(name):
         return os.mkdir(name)
     
-def initialize_task(hpconfig = 'hpconfig.py'):
+def initialize_task(hpconfig = 'hpconfig.py', prefix='run00'):
     log.info('loading hyperparameters from {}'.format(hpconfig))
-    root_dir = hash_file(hpconfig)[-6:]
+    root_dir = hpconfig.replace('.py', '') + '__' + hash_file(hpconfig)[-6:]
+    mkdir_if_exist_not(prefix)
+    root_dir = '{}/{}'.format(prefix, root_dir)
     mkdir_if_exist_not(root_dir)
     mkdir_if_exist_not('{}/results'.format(root_dir))
     mkdir_if_exist_not('{}/results/metrics'.format(root_dir))
     mkdir_if_exist_not('{}/weights'.format(root_dir))
+    mkdir_if_exist_not('{}/plots'.format(root_dir))
 
     shutil.copy(hpconfig, root_dir)
     shutil.copy('config.py', root_dir)
@@ -56,7 +58,7 @@ from pprint import pprint, pformat
 from tqdm import tqdm as _tqdm
 
 def tqdm(a, *args, **kwargs):
-    return _tqdm(a, ncols=100,  *args, **kwargs) if config.CONFIG.tqdm else a
+    return _tqdm(a, ncols=100,  *args, **kwargs) # if config.CONFIG.tqdm else a
 
 
 def squeeze(lol):
@@ -146,19 +148,19 @@ def are_weights_same(model1, model2):
             return False
     return True
 
-def LongVar(array, requires_grad=False):
-    return Var(array, requires_grad).long()
+def LongVar(config, array, requires_grad=False):
+    return Var(config, array, requires_grad).long()
 
-def Var(array, requires_grad=False):
+def Var(config, array, requires_grad=False):
     ret =  Variable(torch.Tensor(array), requires_grad=requires_grad)
     if config.CONFIG.cuda:
         ret = ret.cuda()
 
     return ret
 
-def init_hidden(batch_size, cell):
+def init_hidden(config, batch_size, cell):
     layers = 1
-    if isinstance(cell, (nn.LSTM, nn.GRU, nn.LSTMCell, nn.GRUCell)):
+    if isinstance(cell, (nn.LSTM, nn.GRU)):
         layers = cell.num_layers
         if cell.bidirectional:
             layers = layers * 2
@@ -177,6 +179,10 @@ def init_hidden(batch_size, cell):
         if config.CONFIG.cuda:
             hidden  = hidden.cuda()
         return hidden
+
+class FLAGS:
+    CONTINUE_TRAINING = 0
+    STOP_TRAINING = 1
     
 class Averager(list):
     def __init__(self, config, filename=None, ylim=None, *args, **kwargs):
@@ -235,6 +241,20 @@ class Averager(list):
                 f.write(self.__str__() + '\n')
                 f.flush()
 
+    
+
+class EpochAverager(Averager):
+    def __init__(self, config, filename=None, *args, **kwargs):
+        super(EpochAverager, self).__init__(config, filename, *args, **kwargs)
+        self.config = config
+        self.epoch_cache = Averager(config, filename, *args, *kwargs)
+
+    def cache(self, a):
+        self.epoch_cache.append(a)
+
+    def clear_cache(self):
+        super(EpochAverager, self).append(self.epoch_cache.avg)
+        self.epoch_cache.empty();
                 
 
 # Python program to find SHA256 hash string of a file
