@@ -219,32 +219,18 @@ class Model(Base):
         self.train_feed = train_feed
         self.test_feed = test_feed
         
-
-
-        ########################################################################################
-        #  Saving model weights
-        ########################################################################################
         self.save_model_weights = save_model_weights
-        self.best_model = (1e-5, self.cpu().state_dict())
-        try:
-            f = '{}/{}_best_model_accuracy.txt'.format(self.config.ROOT_DIR, self.name())
-            if os.path.isfile(f):
-                self.best_model = (float(open(f).read().strip()), self.cpu().state_dict())
-                self.log.info('loaded last best accuracy: {}'.format(self.best_model[0]))
-        except:
-            log.exception('no last best model')
 
         self.__build_stats__()
                         
         self.best_model_criteria = self.accuracy
-        self.save_best_model()
 
-
-        self.restore_checkpoint()
-
-        
         if config.CONFIG.cuda:
             self.cuda()
+        
+    def restore_and_save(self):
+        self.restore_checkpoint()
+        self.save_best_model()
         
     def init_hidden(self, batch_size):
         ret = torch.zeros(2, batch_size, self.hidden_dim)
