@@ -88,3 +88,41 @@ class Model(Base):
         logits = self.classify(states[-1])
         
         return F.log_softmax(logits, dim=-1)
+
+
+class AttnModel(Base):
+    def __init__(self, Config, name, input_vocab_size, output_vocab_size):
+        super(AttnModel, self).__init__(config, name)
+        self.input_vocab_size = input_vocab_size
+        self.output_vocab_size = output_vocab_size
+        self.hidden_dim = config.HPCONFIG.hidden_dim
+        self.embed_dim = config.HPCONFIG.embed_dim
+
+        self.embed = nn.Embedding(self.input_vocab_size, self.embed_dim)
+        self.encode = nn.LSTM(self.embed_dim, self.hidden_dim, bidirectional=True, num_layers=config.HPCONFIG.num_layers)
+        self.attn = nn.Linear(self.hidden_dim * 2, 1, bias=False)
+        self.classify = nn.Linear(2*self.hidden_dim, self.output_vocab_size)
+        
+        if config.CONFIG.cuda:
+            self.cuda()
+        
+    def init_hidden(self, batch_size):
+        ret = torch.zeros(2, batch_size, self.hidden_dim)
+        if config.HPCONFIG().cuda: ret = ret.cuda()
+        return Variable(ret)
+    
+    def forward(self, input_):
+        ids, (seq,), _ = input_
+        if seq.dim() == 1: seq = seq.unsqueeze(0)
+            
+        batch_size, seq_size = seq.size()
+        seq_emb = F.tanh(self.embed(seq))
+        seq_emb = seq_emb.transpose(1, 0)
+        pad_mask = (seq > 0).float()
+        
+        states, cell_state = self.__(self.encode(seq_emb), 'states')
+        attn = self.__(self.attn(states), 'attn')
+        attn_hidden = self.__( attn * states, 'attn_hidden')
+        logits = self.classify(attn_hidden.sum(dim=0))
+        
+        return F.log_softmax(logits, dim=-1)
