@@ -44,8 +44,8 @@ PAD = VOCAB.index('PAD')
 """
 Sample   =  namedtuple('Sample', ['id', 'sequence', 'label'])
 
-def load_data(config,
-               filename=('../dataset/text.subword_nmt.txt', '../dataset/label.txt'),
+def load_news_data(config,
+               filename=('../dataset/news/text.subword_nmt.txt', '../dataset/news/label.txt'),
                max_sample_size=None):
     
     samples = []
@@ -95,7 +95,72 @@ def load_data(config,
                    Vocab(input_vocab, special_tokens=VOCAB),
                    Vocab(output_vocab))
 
+def load_filmreviews_data(config,
+                          filename=('../dataset/filmreviews/reviews.subword_nmt.csv',
+                                    '../dataset/filmreviews/ratings.csv'),
+                          max_sample_size=None):
+    
+    samples = []
+    skipped = 0
 
+    input_vocab = Counter()
+    output_vocab = Counter()
+    
+    try:
+        log.info('processing file: {}'.format(filename))
+        text_file, label_file = [open(f).readlines() for f in filename]
+        for i, (s, l) in tqdm(enumerate(zip(text_file, label_file)),
+                            desc='processing {}'.format(filename)):
+
+            s, l = s.strip(), l.strip()
+            label = float(l.strip().lower())
+            if label >= 2.75:
+                label = 'positive'
+            else:
+                label = 'negative'
+            samples.append(
+                Sample(i,
+                       s.strip().split(),
+                       label
+                )
+            )
+            
+            
+            if  max_sample_size and len(samples) > max_sample_size:
+                break
+
+    except:
+        skipped += 1
+        log.exception('{}'.format(line))
+
+    print('skipped {} samples'.format(skipped))
+    
+
+    if max_sample_size:
+        samples = samples[:max_sample_size]
+
+    log.info('building input_vocabulary...')
+    for sample in samples:
+        input_vocab.update(sample.sequence)            
+        output_vocab.update([sample.label])
+
+    pivot = int(len(samples) * config.CONFIG.split_ratio)
+    train_samples, test_samples = samples[:pivot], samples[pivot:]
+    train_samples = sorted(train_samples, key=lambda x: len(x.sequence), reverse=True)
+    test_samples  = sorted(test_samples, key=lambda x: len(x.sequence), reverse=True)
+    return Dataset(filename,
+                   (train_samples, test_samples),
+                   Vocab(input_vocab, special_tokens=VOCAB),
+                   Vocab(output_vocab))
+
+def load_data(config, filename=None):
+    if config.HPCONFIG.dataset == 'filmreviews':
+        return load_filmreviews_data(config, filename=config.HPCONFIG.dataset_path)
+
+    if config.HPCONFIG.dataset == 'news':
+        return load_news_data(config, filename=config.HPCONFIG.dataset_path)
+
+        
 # ## Loss and accuracy function
 def loss(output, batch, loss_function, *args, **kwargs):
     indices, (sequence,), (label) = batch
