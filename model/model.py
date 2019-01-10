@@ -92,22 +92,42 @@ class Base(nn.Module):
             self.snapshot_path = '{}/weights/{}.{}'.format(self.config.ROOT_DIR, self.name(), 'pth')
             self.load_state_dict(torch.load(self.snapshot_path))
             log.info('loaded the old image for the model from :{}'.format(self.snapshot_path))
+
+                
+            try:
+                f = '{}/{}_best_model_accuracy.txt'.format(self.config.ROOT_DIR, self.name())
+                if os.path.isfile(f):
+                    self.best_model = (float(open(f).read().strip()), self.cpu().state_dict())
+                    self.log.info('loaded last best accuracy: {}'.format(self.best_model[0]))
+            except:
+                log.exception('no last best model')
+            
+            if self.config.CONFIG.cuda:
+                self.cuda()    
         except:
+            
             log.exception('failed to load the model  from :{}'.format(self.snapshot_path))
+
 
             
     def save_best_model(self):
-        with open('{}/{}_best_model_accuracy.txt'.format(self.config.ROOT_DIR, self.name()), 'w') as f:
+        with open('{}/{}_best_model_accuracy.txt'
+                  .format(self.config.ROOT_DIR, self.name()), 'w') as f:
             f.write(str(self.best_model[0]))
 
         if self.save_model_weights:
-            self.log.info('saving the last best model with accuracy {}...'.format(self.best_model[0]))
+            self.log.info('saving the last best model with accuracy {}...'
+                          .format(self.best_model[0]))
 
             torch.save(self.best_model[1],
-                       '{}/weights/{:0.4f}.{}'.format(self.config.ROOT_DIR, self.best_model[0], 'pth'))
+                       '{}/weights/{:0.4f}.{}'.format(self.config.ROOT_DIR,
+                                                      self.best_model[0],
+                                                      'pth'))
             
             torch.save(self.best_model[1],
-                       '{}/weights/{}.{}'.format(self.config.ROOT_DIR, self.name(), 'pth'))
+                       '{}/weights/{}.{}'.format(self.config.ROOT_DIR,
+                                                 self.name(),
+                                                 'pth'))
 
 
     def __build_stats__(self):
