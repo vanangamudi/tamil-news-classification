@@ -24,7 +24,7 @@ from torch import nn, optim
 from torch.nn import functional as F
 from torch.autograd import Variable
 
-from anikattu.utilz import Var, LongVar, init_hidden, EpochAverager, FLAGS, tqdm
+from anikattu.utilz import Var, LongVar, init_hidden, Averager, FLAGS, tqdm
 
 from anikattu.debug import memory_consumed
 
@@ -109,28 +109,28 @@ class Base(nn.Module):
         
         # necessary metrics
         self.mfile_prefix = '{}/results/metrics/{}'.format(self.config.ROOT_DIR, self.name())
-        self.train_loss  = EpochAverager(self.config,
-                                       filename = '{}.{}'.format(self.mfile_prefix,   'train_loss'))
+        self.train_loss  = Averager(self.config,
+                                    filename = '{}.{}'.format(self.mfile_prefix,   'train_loss'))
         
-        self.test_loss  = EpochAverager(self.config,
-                                        filename = '{}.{}'.format(self.mfile_prefix,   'test_loss'))
-        self.accuracy   = EpochAverager(self.config,
-                                        filename = '{}.{}'.format(self.mfile_prefix,  'accuracy'))
+        self.test_loss  = Averager(self.config,
+                                   filename = '{}.{}'.format(self.mfile_prefix,   'test_loss'))
+        self.accuracy   = Averager(self.config,
+                                   filename = '{}.{}'.format(self.mfile_prefix,  'accuracy'))
         
         self.metrics = [self.train_loss, self.test_loss, self.accuracy]
         # optional metrics
         if getattr(self, 'f1score_function'):
-            self.tp = EpochAverager(self.config, filename = '{}.{}'.format(self.mfile_prefix,   'tp'))
-            self.fp = EpochAverager(self.config, filename = '{}.{}'.format(self.mfile_prefix,  'fp'))
-            self.fn = EpochAverager(self.config, filename = '{}.{}'.format(self.mfile_prefix,  'fn'))
-            self.tn = EpochAverager(self.config, filename = '{}.{}'.format(self.mfile_prefix,  'tn'))
+            self.tp = Averager(self.config, filename = '{}.{}'.format(self.mfile_prefix,   'tp'))
+            self.fp = Averager(self.config, filename = '{}.{}'.format(self.mfile_prefix,  'fp'))
+            self.fn = Averager(self.config, filename = '{}.{}'.format(self.mfile_prefix,  'fn'))
+            self.tn = Averager(self.config, filename = '{}.{}'.format(self.mfile_prefix,  'tn'))
             
-            self.precision = EpochAverager(self.config,
-                                           filename = '{}.{}'.format(self.mfile_prefix,  'precision'))
-            self.recall    = EpochAverager(self.config,
-                                           filename = '{}.{}'.format(self.mfile_prefix,  'recall'))
-            self.f1score   = EpochAverager(self.config,
-                                           filename = '{}.{}'.format(self.mfile_prefix,  'f1score'))
+            self.precision = Averager(self.config,
+                                      filename = '{}.{}'.format(self.mfile_prefix,  'precision'))
+            self.recall    = Averager(self.config,
+                                      filename = '{}.{}'.format(self.mfile_prefix,  'recall'))
+            self.f1score   = Averager(self.config,
+                                      filename = '{}.{}'.format(self.mfile_prefix,  'f1score'))
           
             self.metrics += [self.tp, self.fp, self.fn, self.tn,
                              self.precision, self.recall, self.f1score]
@@ -244,6 +244,7 @@ class Model(Base):
                     return
                            
             self.train()
+            losses = []
             for j in tqdm(range(self.train_feed.num_batch), desc='Trainer.{}'.format(self.name())):
                 self.optimizer.zero_grad()
                 input_ = self.train_feed.next_batch()
@@ -251,15 +252,15 @@ class Model(Base):
 
                 output = self.forward(input_)
                 loss   = self.loss_function(output, input_)
-                                        
+                #print(loss.data.cpu().numpy())
+                losses.append(loss)
                 loss.backward()
-                self.train_loss.cache(loss.data.item())
                 self.optimizer.step()
                 
+            epoch_loss = torch.stack(losses).mean()
+            self.train_loss.append(epoch_loss.data.item())
 
-            self.log.info('-- {} -- loss: {}\n'.format(epoch, self.train_loss.epoch_cache))
-            self.train_loss.clear_cache()
-            
+            self.log.info('-- {} -- loss: {}\n'.format(epoch, epoch_loss))
             for m in self.metrics:
                 m.write_to_file()
 
@@ -268,6 +269,7 @@ class Model(Base):
     def do_validate(self):
         self.eval()
         if self.test_feed.num_batch > 0:
+            losses, accuracies = [], []
             for j in tqdm(range(self.test_feed.num_batch), desc='Tester.{}'.format(self.name())):
                 input_ = self.test_feed.next_batch()
                 idxs, inputs, targets = input_
@@ -276,20 +278,23 @@ class Model(Base):
                 loss     = self.loss_function(output, input_)
                 accuracy = self.accuracy_function(output, input_)
                 
-                self.test_loss.cache(loss.item())
-                self.accuracy.cache(accuracy.item())
+                losses.append(loss)
+                accuracies.append(accuracy)
+
+            epoch_loss = torch.stack(losses).mean()
+            epoch_accuracy = torch.stack(accuracies).mean()
+
+            self.test_loss.append(epoch_loss.data.item())
+            self.accuracy.append(epoch_accuracy.data.item())
                 #print('====', self.test_loss, self.accuracy)
 
-            self.log.info('= {} =loss:{}'.format(self.epoch, self.test_loss.epoch_cache))
-            self.log.info('- {} -accuracy:{}'.format(self.epoch, self.accuracy.epoch_cache))
-
-            self.test_loss.clear_cache()
-            self.accuracy.clear_cache()
+            self.log.info('= {} =loss:{}'.format(self.epoch, epoch_loss))
+            self.log.info('- {} -accuracy:{}'.format(self.epoch, epoch_accuracy))
             
         if len(self.best_model_criteria) > 1 and self.best_model[0] < self.best_model_criteria[-1]:
             self.log.info('beat best ..')
             self.best_model = (self.best_model_criteria[-1],
-                               self.state_dict())                             
+                               self.cpu().state_dict())                             
 
             self.save_best_model()
             
