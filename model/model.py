@@ -308,18 +308,22 @@ class Model(Base):
         if self.early_stopping:
             return self.loss_trend()
     
-    def do_predict(self, input_=None, length=10):
+    def do_predict(self, input_=None):
         if not input_:
             input_ = self.train_feed.nth_batch(
                 random.randint(0, self.train_feed.size),
                 1
             )
             
-        idxs, inputs, targets = input_
-        output = self.forward(output, state)
-        output = output.max(1)[1]
+        output = self.forward(input_)
+        output = output.max(1)[1].long()
+        print(output.size())
 
-        print(output)
+        ids, (sequence, ), (label) = input_
+        print(' '.join([self.dataset.input_vocab[i.data[0]] for i in sequence[0]]).replace('@@ ', ''))
+        print(self.dataset.output_vocab[output.data[0]],
+              ' ==? ',
+              self.dataset.output_vocab[label.data[0]] )
         
         return True
 
