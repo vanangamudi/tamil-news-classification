@@ -13,10 +13,11 @@ class CONFIG(Base):
                '../dataset/filmreviews/ratings.csv')
     
     trainset_size = 1
-    hidden_dim = 300
-    embed_dim = 300
+    hidden_dim = 5
+    embed_dim = 50
     num_layers = 1
     
-    LR = 0.001
-    MOMENTUM=0.1
+    LR = 0.00001
+    MOMENTUM=0.01
     ACTIVATION = 'softmax'
+
