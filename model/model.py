@@ -174,11 +174,17 @@ class Model(Base):
         self.embed_dim = config.HPCONFIG.embed_dim
 
         self.embed = nn.Embedding(self.input_vocab_size, self.embed_dim)
-        self.encode = nn.LSTM(self.embed_dim, self.hidden_dim, bidirectional=True, num_layers=config.HPCONFIG.num_layers)
+        self.encode = nn.LSTM(self.embed_dim, self.hidden_dim,
+                              bidirectional=True, num_layers=config.HPCONFIG.num_layers)
+        
         self.classify = nn.Linear(2*self.hidden_dim, self.output_vocab_size)
 
         self.loss_function = loss_function if loss_function else nn.NLLLoss()
-        self.accuracy_function = accuracy_function if accuracy_function else lambda *x, **xx: 1 / loss_function(*x, **xx)
+        
+        if accuracy_function :
+            self.accuracy_function = accuracy_function
+        else:
+            self.accuracy_function = lambda *x, **xx: 1 / loss_function(*x, **xx)
 
         self.optimizer = optimizer if optimizer else optim.SGD(self.parameters(),
                                                                lr=0.01, momentum=0.1)
