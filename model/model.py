@@ -43,6 +43,14 @@ class Base(nn.Module):
         self.size_log.setLevel(config.CONFIG.LOG.MODEL.level)
         self.print_instance = 0
         
+
+        ########################################################################################
+        #  Saving model weights
+        ########################################################################################
+
+        self.best_model = (1e-5, self.cpu().state_dict())
+
+        
     def __(self, tensor, name='', print_instance=False):
         if isinstance(tensor, list) or isinstance(tensor, tuple):
             for i in range(len(tensor)):
