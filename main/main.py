@@ -114,7 +114,7 @@ if __name__ == '__main__':
     loss_ = partial(loss, loss_function=nn.NLLLoss())
     test_feed      = DataFeed(SELF_NAME, dataset.testset, batchop=_batchop, batch_size=config.CONFIG.batch_size)
     
-    model =  Model(config, 'macnet',
+    model =  Model(config, 'Model',
                    len(dataset.input_vocab),
                    len(dataset.output_vocab),
                    loss_function = loss_,
@@ -124,13 +124,16 @@ if __name__ == '__main__':
                    train_feed = train_feed,
                    test_feed = test_feed,)
     
+    print('**** the model', model)
+    model.restore_and_save()
+    
     if config.CONFIG.cuda:
         model = model.cuda()        
         if config.CONFIG.multi_gpu and torch.cuda.device_count() > 1:
             print("Let's use", torch.cuda.device_count(), "GPUs!")
             model = nn.DataParallel(model)
 
-    print('**** the model', model)
+
     
     if args.task == 'train':
         model.do_train()
@@ -138,8 +141,7 @@ if __name__ == '__main__':
     if args.task == 'predict':
         for i in range(10):
             try:
-                output = model.do_predict(VOCAB=dataset.input_vocab,
-                                          length=int(args.prediction_length))
+                output = model.do_predict()
             except:
                 log.exception('#########3')
                 pass
