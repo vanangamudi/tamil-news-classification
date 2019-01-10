@@ -229,10 +229,7 @@ class Averager(list):
         return '<empty>'
 
     def append(self, a):
-        try:
-            super(Averager, self).append(a.data.item())
-        except:
-            super(Averager, self).append(a)
+        super(Averager, self).append(a)
             
     def empty(self):
         del self[:]
