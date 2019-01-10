@@ -143,9 +143,24 @@ class ListTable(list):
 torch utils
 """
 def are_weights_same(model1, model2):
-    for p1, p2 in zip(model1.parameters(), model2.parameters()):
-        if p1.data.ne(p2.data).sum() > 0:
+    m1dict = model1.state_dict()
+    m2dict = model2.state_dict()
+    
+    if m1dict.keys() != m2dict.keys():
+        log.error('models don\'t match')
+        log.error(pformat(m1dict.keys()))
+        log.error(pformat(m2dict.keys()))
+        return False
+    
+    for p in m1dict.keys():
+        ne = m1dict[p].data.ne(m2dict[p].data)
+        if ne.sum() > 0:
+            print('===== {} ===='.format(p))
+            print(ne.cpu().numpy())
+            print('sum = ', ne.sum().cpu().numpy())
+    
             return False
+        
     return True
 
 def LongVar(config, array, requires_grad=False):
