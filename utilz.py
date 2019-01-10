@@ -24,12 +24,12 @@ from collections import namedtuple, defaultdict, Counter
 
 from anikattu.tokenizer import word_tokenize
 from anikattu.tokenstring import TokenString
-from anikattu.trainer import Trainer, Tester, Predictor
 from anikattu.datafeed import DataFeed
 from anikattu.dataset import NLPDataset as Dataset, NLPDatasetList as DatasetList
 from anikattu.utilz import tqdm, ListTable
 from anikattu.vocab import Vocab
 from anikattu.utilz import Var, LongVar, init_hidden, pad_seq
+
 from nltk.tokenize import WordPunctTokenizer
 word_punct_tokenizer = WordPunctTokenizer()
 word_tokenize = word_punct_tokenizer.tokenize
@@ -170,6 +170,24 @@ def accuracy(output, batch, *args, **kwargs):
     indices, (sequence,), (label) = batch
     return (output.max(dim=1)[1] == label).sum().float()/float(label.size(0))
 
+
+def waccuracy(output, batch, config, *args, **kwargs):
+    indices, (sequence, ), (label) = batch
+
+    index = label
+    src = Var(config, torch.ones(label.size()))
+    
+    acc_nomin = Var(config, torch.zeros(output.size(1)))
+    acc_denom = Var(config, torch.ones(output.size(1)))
+
+    acc_denom.scatter_add_(0, index, (label == label).float() )
+    acc_nomin.scatter_add_(0, index, (label == output.max(1)[1]).float())
+
+    accuracy = acc_nomin / acc_denom
+
+    #pdb.set_trace()
+    return accuracy.mean()
+
 def repr_function(output, batch, VOCAB, LABELS, dataset):
     indices, (sequence,), (label) = batch
     results = []
@@ -186,7 +204,7 @@ def repr_function(output, batch, VOCAB, LABELS, dataset):
     return results
 
 
-def batchop(datapoints, VOCAB, LABELS, for_prediction=False, *args, **kwargs):
+def batchop(datapoints, VOCAB, LABELS, config,  for_prediction=False, *args, **kwargs):
     indices = [d.id for d in datapoints]
     sequence = []
     label = []
@@ -197,9 +215,9 @@ def batchop(datapoints, VOCAB, LABELS, for_prediction=False, *args, **kwargs):
         if not for_prediction:
             label.append(LABELS[d.label])
 
-    sequence = LongVar(pad_seq(sequence))
+    sequence = LongVar(config, pad_seq(sequence))
     if not for_prediction:
-        label   = LongVar(label)
+        label   = LongVar(config, label)
 
     batch = indices, (sequence, ), (label)
     return batch
@@ -223,46 +241,7 @@ def train(config, argv, name, ROOT_DIR,  model, dataset):
                                                 , dataset=dataset.testset_dict))
 
     loss_ = partial(loss, loss_function=nn.NLLLoss())
-    test_feed      = DataFeed(name, dataset.testset, batchop=_batchop, batch_size=config.CONFIG.batch_size)
-
-    tester = Tester(name  = name,
-                    config   = config,
-                    model    = model,
-                    directory = ROOT_DIR,
-                    loss_function = loss_,
-                    accuracy_function = accuracy,
-                    feed = test_feed,
-                    predictor=predictor)
-
-
-    trainer = Trainer(name=name,
-                      config = config,
-                      model=model,
-                      directory=ROOT_DIR,
-                      optimizer  = optim.Adam(model.parameters()),
-                      loss_function = loss_,
-                      checkpoint = config.CONFIG.CHECKPOINT,
-                      do_every_checkpoint = tester.do_every_checkpoint,
-                      epochs = config.CONFIG.EPOCHS,
-                      feed = train_feed,
-    )
-
-
-
-    for e in range(config.CONFIG.EONS):
-
-        if not trainer.train():
-            raise Exception
-
-        dump = open('{}/results/eon_{}.csv'.format(ROOT_DIR, e), 'w')
-        log.info('on {}th eon'.format(e))
-        results = ListTable()
-        for ri in tqdm(range(predictor_feed.num_batch), desc='\nrunning prediction on eon: {}'.format(e)):
-            output, _results = predictor.predict(ri)
-            results.extend(_results)
-        dump.write(repr(results))
-        dump.close()
-
+"""
     
 def predict(config, argv, model, input_string, dataset):
     tokens = input_string.strip().split()
@@ -277,3 +256,4 @@ def predict(config, argv, model, input_string, dataset):
     output = model(input_)
     return  dataset.output_vocab[output.max(1)[1]]
     
+"""

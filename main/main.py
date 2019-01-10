@@ -24,7 +24,22 @@ import torch
 from anikattu.utilz import initialize_task
 
 from model.model import AttnModel as Model
-from utilz import load_data, train, predict
+from utilz import load_data, batchop, loss, accuracy, waccuracy, portion
+
+from functools import partial
+
+
+from anikattu.tokenizer import word_tokenize
+from anikattu.tokenstring import TokenString
+from anikattu.datafeed import DataFeed, MultiplexedDataFeed
+from anikattu.dataset import NLPDataset as Dataset, NLPDatasetList as DatasetList
+from anikattu.utilz import tqdm, ListTable
+from anikattu.vocab import Vocab
+from anikattu.utilz import Var, LongVar, init_hidden, pad_seq
+from nltk.tokenize import WordPunctTokenizer
+word_punct_tokenizer = WordPunctTokenizer()
+word_tokenize = word_punct_tokenizer.tokenize
+
 
 import importlib
 
@@ -68,6 +83,8 @@ if __name__ == '__main__':
     print(sys.path)
     HPCONFIG = importlib.__import__(args.hpconfig.replace('.py', ''))
     config.HPCONFIG = HPCONFIG.CONFIG
+    config.ROOT_DIR = ROOT_DIR
+    config.NAME = SELF_NAME
     print('====================================')
     print(ROOT_DIR)
     print('====================================')
@@ -83,15 +100,30 @@ if __name__ == '__main__':
     log.info('dataset[:10]: {}'.format(pformat(dataset.trainset[-1])))
 
     log.info('vocab: {}'.format(pformat(dataset.output_vocab.freq_dict)))
+    ########################################################################################
+    # load model snapshot data 
+    ########################################################################################
+    _batchop = partial(batchop, VOCAB=dataset.input_vocab, LABELS=dataset.output_vocab, config=config)
+    train_feed     = DataFeed(SELF_NAME,
+                              portion(dataset.trainset,
+                                      config.HPCONFIG.trainset_size),
+                              batchop    = _batchop,
+                              batch_size = config.CONFIG.batch_size)
     
-    try:
-        model =  Model(config, 'macnet', len(dataset.input_vocab),  len(dataset.output_vocab))
-        model_snapshot = '{}/weights/{}.{}'.format(ROOT_DIR, SELF_NAME, 'pth')
-        model.load_state_dict(torch.load(model_snapshot))
-        log.info('loaded the old image for the model from :{}'.format(model_snapshot))
-    except:
-        log.exception('failed to load the model  from :{}'.format(model_snapshot))
-
+    
+    loss_ = partial(loss, loss_function=nn.NLLLoss())
+    test_feed      = DataFeed(SELF_NAME, dataset.testset, batchop=_batchop, batch_size=config.CONFIG.batch_size)
+    
+    model =  Model(config, 'macnet',
+                   len(dataset.input_vocab),
+                   len(dataset.output_vocab),
+                   loss_function = loss_,
+                   accuracy_function = accuracy,
+                   #accuracy_function = partial(waccuracy, config=config),
+                   dataset = dataset,
+                   train_feed = train_feed,
+                   test_feed = test_feed,)
+    
     if config.CONFIG.cuda:
         model = model.cuda()        
         if config.CONFIG.multi_gpu and torch.cuda.device_count() > 1:
@@ -101,20 +133,14 @@ if __name__ == '__main__':
     print('**** the model', model)
     
     if args.task == 'train':
-        train(config, args, SELF_NAME, ROOT_DIR, model, dataset)
+        model.do_train()
         
     if args.task == 'predict':
-        print('=========== PREDICTION ==============')
-        model.eval()
-        count = 0
-        while True:
-            count += 1
-            input_string = input('?')
-            if not input_string:
-                sample = random.choice(dataset.testset)
-                id_, input_string, target = sample
-                input_string = ' '.join(input_string)
-            label = predict(config, args, model, input_string, dataset)            
-            print(input_string.replace('@@ ', ''), '==', label, '===',  target)
+        for i in range(10):
+            try:
+                output = model.do_predict(VOCAB=dataset.input_vocab,
+                                          length=int(args.prediction_length))
+            except:
+                log.exception('#########3')
+                pass
                 
-                     
