@@ -23,7 +23,7 @@ import torch
 
 from anikattu.utilz import initialize_task
 
-from model.model import Model
+from model.model import AttnModel as Model
 from utilz import load_data, train, predict
 
 import importlib
@@ -111,44 +111,10 @@ if __name__ == '__main__':
             count += 1
             input_string = input('?')
             if not input_string:
-                continue
-            
+                sample = random.choice(dataset.testset)
+                id_, input_string, target = sample
+                input_string = ' '.join(input_string)
             label = predict(config, args, model, input_string, dataset)            
-            print(input_string.replace('@@ ', ''), '==', label)
+            print(input_string.replace('@@ ', ''), '==', label, '===',  target)
                 
-                        
-    if 'service' in sys.argv:
-        model.eval()
-        from flask import Flask,request,jsonify
-        from flask_cors import CORS
-        app = Flask(__name__)
-        CORS(app)
-
-        @app.route('/ade-genentech',methods=['POST'])
-        def _predict():
-           print(' requests incoming..')
-           sentence = []
-           try:
-               input_string = word_tokenize(request.json["text"].lower())
-               sentence.append([VOCAB[w] for w in input_string] + [VOCAB['EOS']])
-               dummy_label = LongVar([0])
-               sentence = LongVar(sentence)
-               input_ = [0], (sentence,), (0, )
-               output, attn = model(input_)
-               #print(LABELS[output.max(1)[1]], attn)
-               nwords = len(input_string)
-               return jsonify({
-                   "result": {
-                       'sentence': input_string,
-                       'attn': ['{:0.4f}'.format(i) for i in attn.squeeze().data.cpu().numpy().tolist()[:-1]],
-                       'probs': ['{:0.4f}'.format(i) for i in output.exp().squeeze().data.cpu().numpy().tolist()],
-                       'label': LABELS[output.max(1)[1].squeeze().data.cpu().numpy()]
-                   }
-               })
-           
-           except Exception as e:
-               print(e)
-               return jsonify({"result":"model failed"})
-
-        print('model running on port:5010')
-        app.run(host='0.0.0.0',port=5010)
+                     
