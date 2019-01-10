@@ -259,7 +259,7 @@ class EpochAverager(Averager):
     def __init__(self, config, filename=None, *args, **kwargs):
         super(EpochAverager, self).__init__(config, filename, *args, **kwargs)
         self.config = config
-        self.epoch_cache = Averager(config, filename, *args, *kwargs)
+        self.epoch_cache = Averager(config, *args, *kwargs)
 
     def cache(self, a):
         self.epoch_cache.append(a)
