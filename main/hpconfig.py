@@ -8,6 +8,9 @@ class Base(metaclass=ConfigMeta):
     pass
 
 class CONFIG(Base):
+
+    dataset = 'news'
+    
     labels={
         'tamilnadu': 3115,
         'india': 2263,
@@ -28,6 +31,7 @@ class CONFIG(Base):
         #'others': 3,
     }
     
+    dataset_path = ('../dataset/news/text.subword_nmt.txt', '../dataset/news/label.txt')
     trainset_size = 1
     hidden_dim = 300
     embed_dim = 300
