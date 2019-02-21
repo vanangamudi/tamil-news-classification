@@ -2,7 +2,9 @@
 Classification of tamil news headlines - experimental
 
 ## Data source
-The data is scraped from puthiyathalaimurai.com. The model accuracy is little over 60 percent. Though, we use only the headlines of the news. Using the article content or part of it might improve the accuracy. 
+The data is scraped from puthiyathalaimurai.com. The model accuracy is little over 60 percent. Though, we use only the headlines of the news. Using the article content or part of it might improve the accuracy.
+
+The filmreviews raw data can be downloaded from [here](dat://e95e50d7deb166cf882515f67c3f9454dbeb41fb4c00983af53d5e4462c418c2) using [dat tool](https://try-dat.com/02-link.html#Downloading)
 
 ## Training
     $ python main.py train
